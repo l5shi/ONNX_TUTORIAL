@@ -15,12 +15,12 @@ from shutil import copyfile
 
 import numpy as np
 from IPython import embed
+import helper
+
 
 import re
 import json
 import xlrd
-
-
 
 
 def readTestCase(testCaseFileName, row_numbers, sheet_name):
@@ -218,7 +218,10 @@ def buildSingleLayerModel(cfgDict):
     return model
 
 def buildSingleLayerONNX(cfgDict):
-
+    node_list = []
+    values_in = []
+    values_out = []
+    values_info = []
     # Get the core operation
     testType = cfgDict["conv_mode_(in_model_operation)"]
     name = cfgDict["test_case_notes"]
@@ -227,7 +230,8 @@ def buildSingleLayerONNX(cfgDict):
     # Read the input, if "dense", flatten the input to 1D
     input_shape = (1, int(cfgDict["input_channel_num"]), int(cfgDict["input_size_h_(row)"]), int(cfgDict["input_size_w_(col)"]))
 
-
+    inputs = O.helper.make_tensor_value_info('Input', O.TensorProto.FLOAT, list(input_shape))
+    values_info.append(inputs)
     #if testType == "dense":
     #    input_shape = (int(cfgDict["input_size_w_(col)"]) * int(cfgDict["input_size_h_(row)"]),)
 
@@ -247,16 +251,33 @@ def buildSingleLayerONNX(cfgDict):
         paddingLeft = int(cfgDict['left_padding_l'])
         paddingRight = int(cfgDict['right_padding_r'])
 
-        #########################
-        #         TO DO         #
-        #########################
+    #########################
+    #      build padding    #
+    #########################
+    padding_info = [paddingTop,paddingLeft,paddingBottom,paddingRight]
+    if np.sum(padding_info) > 0:
+        node = O.helper.make_node(
+        'Pad', # node name
+        ['Input'], # inputs
+        ['padding'], # outputs
+        #mode='constant', # Attributes
+        name='zero_padding2d',
+        pads=padding_info,
+        )
+        node_list.append(node)
+        after_pad_row = int(input_shape[2] + paddingLeft + paddingRight)
+        after_pad_col = int(input_shape[3] + paddingTop + paddingBottom)
+        input_shape = [input_shape[0],input_shape[1],after_pad_row,after_pad_col]
+        pad = O.helper.make_tensor_value_info('padding', O.TensorProto.FLOAT, input_shape)
+        values_info.append(pad)
+        input_pad = 'padding'
+    else:
+        input_pad = 'Input'
 
 
-
-
-    # Build core layer (conv, deconv, dw, dense, add)
-    coreLayer = None
-    #filters = int(cfgDict["output_channel_num"])
+    #########################
+    #     prepare conv      #
+    #########################    
     filters = int(cfgDict["concat_channel_end_index"]) - int(cfgDict["concat_channel_start_index"]) + 1
     kernel_size = (0, 0)
     if cfgDict["kernel_size_w"] != "NA":
@@ -265,31 +286,59 @@ def buildSingleLayerONNX(cfgDict):
     if cfgDict["padding_mode"] == 'valid':
         padding = [0,0,0,0]
     else:
-        padding = [paddingLeft,paddingTop,paddingRight,paddingBottom] ###?????????????????
-
+        padding = helper.getPading(input_shape[2:4],kernel_size[0],strides[0])
     channel = input_shape[2]
     activation = None
     use_bias = True
     dense_units = int(cfgDict["concat_channel_end_index"]) - int(cfgDict["concat_channel_start_index"]) + 1
-  
-    result_row = int((input_shape[2] - kernel_size[0] + paddingLeft + paddingRight)/strides[0] + 1)
-    result_col = int((input_shape[3] - kernel_size[1] + paddingTop + paddingBottom)/strides[1] + 1)
+    result_row = int((input_shape[2] - kernel_size[0])/strides[0] + 1)
+    result_col = int((input_shape[3] - kernel_size[1])/strides[1] + 1)
     output_shape = (1,  int(cfgDict["output_channel_num"]), result_row, result_col)
      
-    inputs = O.helper.make_tensor_value_info('input', O.TensorProto.FLOAT, list(input_shape))
-    outputs = O.helper.make_tensor_value_info('output', O.TensorProto.FLOAT, list(output_shape))
+    #########################
+    #     build weights     #
+    ######################### 
+    weight_shape = [output_shape[1],input_shape[1],kernel_size[0],kernel_size[1]]
+    weight =  O.helper.make_tensor_value_info('weight', O.TensorProto.FLOAT, list(weight_shape))
+    weight_tensor = O.helper.make_tensor('weight_tensor',O.TensorProto.FLOAT,weight_shape,np.zeros(weight_shape).ravel())
+    node = O.helper.make_node(
+    "Constant",
+    [],
+    ['weight'],
+    name='weight_1',
+    value=weight_tensor,
+    )
+    node_list.append(node)
+    values_info.append(weight)
 
-    values_in = []
-    values_out = []
-    node_list = []
-    values_in.append(inputs)
-    values_out.append(outputs)
+    #########################
+    #      build bias       #
+    ######################### 
+    bias_shape = [output_shape[1]]
+    bias = O.helper.make_tensor_value_info('bias', O.TensorProto.FLOAT, bias_shape)
+    bias_tensor = O.helper.make_tensor('bias_tensor',O.TensorProto.FLOAT,bias_shape,np.zeros(bias_shape).ravel())
+    node = O.helper.make_node(
+    "Constant",
+    [],
+    ['bias'],
+    name='bias_1',
+    value=bias_tensor,
+    )
+    node_list.append(node)
+    values_info.append(bias)
+
+    #########################
+    #      build conv       #
+    ######################### 
+    outputs = O.helper.make_tensor_value_info(testType+'_out', O.TensorProto.FLOAT, list(output_shape))
+    values_info.append(outputs)
+
     #logger.debug(testType)
     if testType in[ "conv", "RGBAconv", "RGBA"]: ### named by "RGBA" not "RGBAconv"
         node = O.helper.make_node(
           'Conv2D',
-          ['input'],
-          ['output'],
+          [input_pad,'weight','bias'],
+          [testType+'_out'],
           name = str(testType),
           kernel_shape=list(kernel_size),
           pads=padding,
@@ -300,8 +349,8 @@ def buildSingleLayerONNX(cfgDict):
     elif testType == "deconv":
         node = O.helper.make_node(
           'Conv2DTranspose',
-          ['input'],
-          ['output'],
+          [input_pad,'weight','bias'],
+          [testType+'_out'],
           name = str(testType),
           kernel_shape=list(kernel_size),
           pads=padding,
@@ -312,8 +361,8 @@ def buildSingleLayerONNX(cfgDict):
     elif testType == "dw":
         node = O.helper.make_node(
           'Conv2D',
-          ['input'],
-          ['output'],
+          [input_pad,'weight','bias'],
+          [testType+'_out'],
           name = str(testType),
           kernel_shape=list(kernel_size),
           pads=padding,
@@ -346,21 +395,23 @@ def buildSingleLayerONNX(cfgDict):
     #########################
 
 
-
+    values_in.append(inputs)
+    values_out.append(outputs)
     #construct graph
     graph_def = O.helper.make_graph(
-	    node_list,
-	    name + '_onnx',
-	    values_in,
-	    values_out,
-	    )
+        node_list,
+        name + '_onnx',
+        values_in,
+        values_out,
+        value_info=values_info,
+        )
     # Create the model (ModelProto)
 
     omodel = O.helper.make_model(graph_def, producer_name='Kneron')
 
-	  # Create the model (ModelProto)
-	  # O.checker.check_model(omodel)
-	  #logger.debug("Conversion Finished. With op: " + str(ops))
+      # Create the model (ModelProto)
+      # O.checker.check_model(omodel)
+      #logger.debug("Conversion Finished. With op: " + str(ops))
     return omodel
 
 def genTestCase(cfgList):
