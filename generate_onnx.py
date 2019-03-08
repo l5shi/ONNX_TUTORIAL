@@ -429,7 +429,7 @@ def buildSingleLayerONNX(cfgDict):
     
 
     # Build activation layers
-    def activateLayer(input_relu_info, input_relu_shape)
+    def activateLayer(input_relu_info, input_relu_shape):
         node_lst = []
         value_info_lst = []
 
@@ -552,7 +552,7 @@ def buildSingleLayerONNX(cfgDict):
                 )
             node_lst.append(node_pool)
             value_info_lst.append(output_pool_info)
-            
+
         return node_lst, value_info_lst, 'output_pool_info'
 
     layerDict = OrderedDict()
