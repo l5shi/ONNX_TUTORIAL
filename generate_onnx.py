@@ -340,10 +340,153 @@ def buildSingleLayerONNX(cfgDict):
 
 
     #PCONV
-
     #########################
     #         TO DO         #
     #########################
+
+    # Build batchnorm layer
+    # bnLayer = BatchNormalization(beta_initializer='RandomNormal', gamma_initializer='RandomNormal', moving_mean_initializer='zeros', moving_variance_initializer='ones')
+    input_bn = O.helper.make_tensor_value_info('input_bn', O.TensorProto.FLOAT, list(input_bn_shape)) # (N x C x H x W)
+    scale_bn = O.helper.make_tensor_value_info('scale_bn', O.TensorProto.FLOAT, list(input_bn_shape[1]))
+    bias_bn = O.helper.make_tensor_value_info('bias_bn', O.TensorProto.FLOAT, list(input_bn_shape[1]))
+    mean_bn = O.helper.make_tensor_value_info('mean_bn', O.TensorProto.FLOAT, list(input_bn_shape[1]))
+    var_bn = O.helper.make_tensor_value_info('var_bn', O.TensorProto.FLOAT, list(input_bn_shape[1]))
+    output_bn = O.helper.make_tensor_value_info('output_bn', O.TensorProto.FLOAT, list(output_bn_shape))
+
+    node_bn = O.helper.make_node( 
+      op_type='BatchNormalization',
+      inputs=['input_bn', 'scale_bn', 'bias_bn', 'mean_bn', 'var_bn', 'output_bn'],
+      outputs=['output_bn'],
+      name='PCONV_BN',
+      # epsilon=self.layer.epsilon,
+      # momentum=self.layer.momentum,
+      spatial=1,
+      is_test=1
+      )
+    node_list.append(node_bn)
+
+
+    # Build activation layers
+    relu_mode = cfgDict["relu_mode"]
+    relu6_clamp = cfgDict["relu6_clamp"]
+
+    input_relu = O.helper.make_tensor_value_info('input_relu', O.TensorProto.FLOAT, list(input_bn_shape))
+    output_relu = O.helper.make_tensor_value_info('output_relu', O.TensorProto.FLOAT, list(input_bn_shape))
+
+    if relu6_clamp == "MAX":
+        relu6_clamp = 8
+
+
+    if relu_mode == 3:
+        node_clamp = onnx.helper.make_node(
+            'Clip',
+            inputs=['input_relu'],
+            outputs=['output_relu'],
+            min=0,
+            max=relu6_clamp,
+            name = 'relu6_clamp'
+        )
+
+    elif relu_mode == 2:
+        slope_relu = O.helper.make_tensor_value_info('slope_relu', O.TensorProto.FLOAT, list(input_bn_shape[1:]))
+        # channel, heigh and width, but want to share axis
+        node_relu = O.helper.make_node(
+            op_type='PRelu',
+            inputs = ['input_relu', 'slope_relu'],
+            outputs = ['output_relu'],
+            name = 'PCONV_prelu'
+        )
+
+    elif relu_mode == 1:
+        node_relu = onnx.helper.make_node(
+            op_type = 'LeakyRelu',
+            inputs=['x'],
+            outputs=['y'],
+            alpha=0.1,
+            name = 'PCONV_leakyrelu'
+        )
+
+
+     elif relu_mode == 0 or relu_mode == "ReLU":
+        node_relu = O.helper.make_node(
+          op_type='Relu',
+          inputs = ['input_relu'],
+          outputs = ['output_relu'],
+          name = 'PCONV_relu'
+        )
+
+    else:
+        reluLayer = None
+
+
+    # Build pooling padding layer
+    input_pool = O.helper.make_tensor_value_info('input_pool', O.TensorProto.FLOAT, list(input_bn_shape))
+    output_pool = O.helper.make_tensor_value_info('output_pool', O.TensorProto.FLOAT, list(input_bn_shape))
+
+    if cfgDict['pconv_en'] and cfgDict['pconv_pool_en']:
+        paddingTop = int(cfgDict['pool_padding_up'])
+        paddingBottom = int(cfgDict['pool_padding_dn'])
+        paddingLeft = int(cfgDict['pool_padding_left'])
+        paddingRight = int(cfgDict['pool_padding_right'])
+        options = {}
+        if  paddingTop or paddingBottom or paddingLeft or paddingRight:
+            # poolingLayerPair.append(ZeroPadding2D(padding = ((paddingTop, paddingBottom),(paddingLeft, paddingRight))))
+            options["padding"] = "same"
+            pads = [paddingTop, paddingLeft, paddingBottom, paddingRight]
+        else:
+            pads = [0, 0, 0, 0]
+
+        # Build pooling layer
+        #pool_info = cfgDict["pool_size_and_stride"]
+        pool_size = cfgDict["pool_size"]
+        pool_stride = cfgDict["pool_stride"]
+        # if "_" in pool_info:
+        #     pool_size, pool_stride = pool_info.split("_")
+        #     pool_size = int(pool_size[1])
+        #     pool_stride = int(pool_stride[1])
+        pool_mode = cfgDict["pool_mode"]
+        # poolingLayer = None
+        strides = [int(pool_stride), int(pool_stride)]
+        if pool_mode == 0 or pooling_mode == 1:
+            node_pool = O.helper.make_node(
+              op_type='MaxPool',
+              inputs=['input_pool'],
+              outputs=['output_pool'],
+              name='PCONV_MaxPool',
+              kernel_shape=[int(pool_size), int(pool_size)],
+              pads=pads,
+              strides=strides
+            )
+
+        elif pool_mode == 2:
+            node_pool = O.helper.make_node(
+              op_type='AveragePool',
+              inputs=['input_pool'],
+              outputs=['output_pool'],
+              name='PCONV_AveragePool',
+              kernel_shape=[int(pool_size), int(pool_size)],
+              pads=pads,
+              strides=strides
+            )
+
+        elif pool_mode == 3 or pool_mode == "global":
+            node_pool = O.helper.make_node(
+              op_type='GlobalAveragePool',
+              inputs=['input_pool'],
+              outputs=['output_pool'],
+              name='PCONV_GlobalAveragePool',
+              kernel_shape=[int(pool_size), int(pool_size)],
+              pads=pads,
+              strides=strides
+            )
+
+    
+
+
+
+
+
+
 
 
 
