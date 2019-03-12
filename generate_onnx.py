@@ -10,6 +10,7 @@ from keras.models import Sequential
 import onnx as O
 import os
 import sys
+import time
 from collections import OrderedDict
 from shutil import copyfile
 
@@ -23,6 +24,7 @@ import json
 import xlrd
 
 
+os.environ["TF_CPP_MIN_LOG_LEVEL"]="3"
 
 def get_config(ver=5):
     config = OrderedDict()
@@ -33,14 +35,56 @@ def get_config(ver=5):
         config['bias_gen'] ='random'
         config['fn_excel'] = "test_cases_red_20181114.xlsx"
         config['row_numbers'] = list(range(1, 102))
-        config['sheet_name'] = 'test_case_list'
-    elif ver == 111:
+        config['sheet_name'] = 'test_case_list' 
+    elif ver == 11:
         config['input_gen'] ='debug'
         config['weight_gen'] ='debug'
         config['bias_gen'] ='all0'
         config['fn_excel'] = "test_cases_red_20181208_reorder.xlsx"
-        config['row_numbers'] = list(range(89,90))
-        config['sheet_name'] = 'v11_8bit3x3'    
+        config['row_numbers'] = list(range(1, 298))
+        config['sheet_name'] = 'v11_8bit3x3'
+    elif ver == 12:
+        config['input_gen'] ='debug'
+        config['weight_gen'] ='debug'
+        config['bias_gen'] ='all0'
+        config['fn_excel'] = "test_cases_red_20181208_reorder.xlsx"
+        config['row_numbers'] = list(range(1, 197))
+        config['sheet_name'] = 'v12_8bit1x1'
+    elif ver == 13:
+        config['input_gen'] ='debug'
+        config['weight_gen'] ='debug'
+        config['bias_gen'] ='all0'
+        config['fn_excel'] = "test_cases_red_20181208_reorder.xlsx"
+        config['row_numbers'] = list(range(1, 277))
+        config['sheet_name'] = 'v13_8bit3x3dw_16row'
+    elif ver == 14:
+        config['input_gen'] ='debug'
+        config['weight_gen'] ='debug'
+        config['bias_gen'] ='all0'
+        config['fn_excel'] = "test_cases_red_20181208_reorder.xlsx"
+        config['row_numbers'] = list(range(1, 293))
+        config['sheet_name'] = 'v14_8bitRGBA3x3'
+    elif ver == 15:
+        config['input_gen'] ='debug'
+        config['weight_gen'] ='debug'
+        config['bias_gen'] ='all0'
+        config['fn_excel'] = "test_cases_red_20181208_reorder.xlsx"
+        config['row_numbers'] = list(range(1, 56))
+        config['sheet_name'] = 'v15_8bitdense'
+    elif ver == 16:
+        config['input_gen'] ='debug'
+        config['weight_gen'] ='debug'
+        config['bias_gen'] ='all0'
+        config['fn_excel'] = "test_cases_red_20181208_reorder.xlsx"
+        config['row_numbers'] = list(range(1, 259))
+        config['sheet_name'] = 'v16_8bitadd'
+    elif ver == 17:
+        config['input_gen'] ='debug'
+        config['weight_gen'] ='debug'
+        config['bias_gen'] ='all0'
+        config['fn_excel'] = "test_cases_red_20181208_reorder.xlsx"
+        config['row_numbers'] = list(range(97, 121))
+        config['sheet_name'] = 'v17_reshape_concat'
     else:
         raise NotImplemented
 
@@ -75,6 +119,9 @@ def readTestCase(testCaseFileName, row_numbers, sheet_name):
     return cfgList
 
 def buildSingleLayerONNX(cfgDict):
+    #########################
+    #       Initialize      #
+    #########################
     node_list = []
     values_in = []
     values_out = []
@@ -98,23 +145,19 @@ def buildSingleLayerONNX(cfgDict):
         input_name = ['Input']  
         values_in += [inputs]	
 
-    #if testType == "dense":
-    #    input_shape = (int(cfgDict["input_size_w_(col)"]) * int(cfgDict["input_size_h_(row)"]),)
 
-    # Generate input layer, if "add", make multiple inputs
-    #input = Input(shape=input_shape)
-
-    # Build conv padding layer
     input_pad = input_name[0]
     if cfgDict['conv_en']:
         paddingTop = int(cfgDict['up_padding_t'])
         paddingBottom = int(cfgDict['dn_padding_b'])
         paddingLeft = int(cfgDict['left_padding_l'])
         paddingRight = int(cfgDict['right_padding_r'])
+
     #########################
     #      build padding    #
     #########################
-        padding_info = [paddingTop,paddingLeft,paddingBottom,paddingRight]
+
+        padding_info = [0,0,paddingTop,paddingLeft,0,0,paddingBottom,paddingRight]
         if np.sum(padding_info) > 0:
             node = O.helper.make_node(
             'Pad', # node name
@@ -125,8 +168,8 @@ def buildSingleLayerONNX(cfgDict):
             pads=padding_info,
             )
             node_list.append(node)
-            after_pad_row = int(input_shape[2] + paddingLeft + paddingRight)
-            after_pad_col = int(input_shape[3] + paddingTop + paddingBottom)
+            after_pad_col = int(input_shape[2] + paddingLeft + paddingRight)
+            after_pad_row = int(input_shape[3] + paddingTop + paddingBottom)
             input_shape = [input_shape[0],input_shape[1],after_pad_row,after_pad_col]
             pad = O.helper.make_tensor_value_info('padding', O.TensorProto.FLOAT, input_shape)
             values_info.append(pad)
@@ -240,7 +283,6 @@ def buildSingleLayerONNX(cfgDict):
             name='dense',
             alpha=1.0,
             beta=1.0,
-            broadcast=0,
             transA=0,
             transB=0
             )
@@ -262,10 +304,10 @@ def buildSingleLayerONNX(cfgDict):
     else:
         output_shape = input_shape
         bypass_conv = input_pad
-    #PCONV
+
 
     #########################
-    #         TO DO         #
+    #         PCONV         #
     #########################
 
     input_shape = output_shape
@@ -293,7 +335,11 @@ def buildSingleLayerONNX(cfgDict):
 
 
     values_out.append(values_info[-1])
-    #construct graph
+
+    #########################
+    #   construct graph     #
+    #########################
+
     graph_def = O.helper.make_graph(
 	    node_list,
 	    name + '_onnx',
@@ -301,36 +347,43 @@ def buildSingleLayerONNX(cfgDict):
 	    values_out,
 	    value_info=values_info,
 	    )
-    # Create the model (ModelProto)
+    #########################
+    #      build model      #
+    #########################
 
     omodel = O.helper.make_model(graph_def, producer_name='Kneron')
 
     return omodel
 
-def genTestCase(cfgList):
+def genTestCase(cfgList,dir_output):
+    if os.path.exists(dir_output):
+        dir_output = dir_output
+
+    else:
+        os.mkdir(dir_output)
 
     for cfgDict in cfgList:
 
         model = buildSingleLayerONNX(cfgDict)
-
-        O.save(model, 'onnx_model/'+str(int(cfgDict["test_case_number"]))+'_'+cfgDict["test_case_notes"]+'.onnx')
+        O.checker.check_model(model)
+        O.save(model, dir_output+'/'+str(int(cfgDict["test_case_number"]))+'_'+cfgDict["test_case_notes"]+'.onnx')
 
 
 if __name__ == "__main__":
     np.random.seed(8)
 
-    version = 111
-
-    excel_path = "."
-    output_path = "."
-
-
-    #TODO: it should move config to JSON (don't store much data on code), and user get_config to get data from JSON
-    configs = get_config(version)
-    #configs['weight_gen'] = "random"
-    # logger.debug(configs)
-
-    testCasesFileName = "{}/{}".format(excel_path, configs['fn_excel'])
-    cfgList = readTestCase(testCasesFileName, row_numbers=configs['row_numbers'], sheet_name=configs['sheet_name'])
-    dir_output = "{}/test_cases_{}".format(output_path, configs['version'])
-    genTestCase(cfgList)
+    for i in range(15,18):
+        version = i
+        excel_path = "."
+        output_path = "."
+        configs = get_config(version)
+        testCasesFileName = "{}/{}".format(excel_path, configs['fn_excel'])
+        cfgList = readTestCase(testCasesFileName, row_numbers=configs['row_numbers'], sheet_name=configs['sheet_name'])
+        dir_output = "{}/test_cases_{}".format(output_path, configs['version'])
+        # animation = "|/-\\"
+        # for j in range(50):
+        #     time.sleep(0.1)
+        #     sys.stdout.write("\r" + animation[j % len(animation)])
+        #     sys.stdout.flush()
+        print('Generating ONNX for version: ',version,end='\r')
+        genTestCase(cfgList,dir_output)

@@ -32,12 +32,25 @@ def reluLayer_wrapper(cfgDict):
 			'Clip',
 			inputs=[input_str_info],
 			outputs=['output_relu_info'],
-			min=0,
+			min=0.0,
 			max=relu6_clamp,
 			name = 'relu6_clamp'
 			)
 		elif relu_mode == 2:
-			slope_relu = O.helper.make_tensor_value_info('slope_relu_info', O.TensorProto.FLOAT, list(input_relu_shape[1:]))
+
+			slope_relu_info = O.helper.make_tensor_value_info('slope_relu_info', O.TensorProto.FLOAT, list(input_relu_shape[1:]))
+			slope_relu_tensor = O.helper.make_tensor('slope_relu_tensor', O.TensorProto.FLOAT, 
+				list(input_relu_shape[1:]), np.random.normal(size =input_relu_shape[1]))
+
+			node_slope = O.helper.make_node( 
+			op_type='Constant',
+			inputs=[],
+			outputs=['slope_relu_info'],
+			name='Slope',
+			value=slope_relu_tensor
+			)
+			node_lst.append(node_slope)
+			value_info_lst.append(slope_relu_info)
 			# channel, heigh and width, but want to share axis in w and h
 			node_relu = O.helper.make_node(
 			op_type='PRelu',
@@ -147,8 +160,8 @@ def bnLayer(input_str_info, input_bn_shape):
 	name='PCONV_BN',
 	# epsilon=self.layer.epsilon,
 	# momentum=self.layer.momentum,
-	spatial=1,
-	is_test=1
+	#spatial=1,
+	#is_test=1
 	)
 	node_lst.append(node_bn)
 	value_info_lst.append(output_bn_info)
@@ -184,12 +197,12 @@ def poolingLayer_wrapper(cfgDict):
 			#     pool_stride = int(pool_stride[1])
 			pool_mode = cfgDict["pool_mode"]
 			# poolingLayer = None
-			result_row = int((input_pool_shape[2] - pool_size + paddingLeft + paddingRight)/pool_stride + 1)
-			result_col = int((input_pool_shape[3] - pool_size + paddingBottom + paddingTop)/pool_stride + 1)
-			output_pool_shape = (input_pool_shape[0], input_pool_shape[1], result_row, result_col)
-			output_pool_info = O.helper.make_tensor_value_info('output_pool_info', O.TensorProto.FLOAT, list(output_pool_shape))
-
-			strides = [int(pool_stride), int(pool_stride)]
+			if pool_mode !=3 and pool_mode != "global":
+				result_row = int((input_pool_shape[2] - int(pool_size) + paddingLeft + paddingRight)/int(pool_stride) + 1)
+				result_col = int((input_pool_shape[3] - int(pool_size) + paddingBottom + paddingTop)/int(pool_stride) + 1)
+				output_pool_shape = (input_pool_shape[0], input_pool_shape[1], result_row, result_col)
+				output_pool_info = O.helper.make_tensor_value_info('output_pool_info', O.TensorProto.FLOAT, list(output_pool_shape))
+				strides = [int(pool_stride), int(pool_stride)]
 			if pool_mode == 0 or pool_mode == 1:
 				node_pool = O.helper.make_node(
 				op_type='MaxPool',
@@ -221,9 +234,9 @@ def poolingLayer_wrapper(cfgDict):
 				inputs=[input_str_info],
 				outputs=['output_toflatten_info'],
 				name='PCONV_GlobalAveragePool',
-				kernel_shape=[int(pool_size), int(pool_size)],
-				pads=pads,
-				strides=strides
+				# kernel_shape=[int(pool_size), int(pool_size)],
+				# pads=pads,
+				# strides=strides
 				)
 				node_lst.append(node_flatten)
 				value_info_lst.append(output_toflatten_info)
