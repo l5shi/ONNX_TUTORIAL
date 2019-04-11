@@ -1,5 +1,5 @@
 ![](./ONNX.png?raw=true ("RGB image")) 
-## This repository shows how to build ONNX model from scratch.
+## This repository shows detailed steps of building neural network ONNX models from scratch.
 
 #### 1. Create Node + Value info
 #### 2. Connect each Node to Make Graph
