@@ -86,6 +86,3 @@ Check out [contributor guide](https://github.com/onnx/onnx/blob/master/docs/CONT
 
 [MIT License](LICENSE)
 
-# Code of Conduct
-
-[ONNX Open Source Code of Conduct](http://onnx.ai/codeofconduct.html)
