@@ -1,39 +1,5 @@
 # ONNX_TUTORIAL
 This repository is used to build ONNX model from scratch.
-# Use ONNX
-* [Supported Frameworks, Tools, and Hardware](http://onnx.ai/supported-tools)
-* [Tutorials for creating ONNX models from](https://github.com/onnx/tutorials).
-
-# Learn about the ONNX spec
-* [Overview](docs/Overview.md)
-* [ONNX intermediate representation spec](docs/IR.md)
-* [Versioning principles of the spec](docs/Versioning.md)
-* [Operators documentation](docs/Operators.md)
-* [Python API Overview](docs/PythonAPIOverview.md)
-
-# Programming utilities for working with ONNX Graphs
-* [Shape and Type Inference](docs/ShapeInference.md)
-* [Graph Optimization](docs/Optimizer.md)
-* [Opset Version Conversion](docs/VersionConverter.md)
-
-# Contribute
-ONNX is a community project. We encourage you to join the effort and contribute feedback, ideas, and code.
-You can join [one of the working groups](https://github.com/onnx/onnx/wiki/%5BAnnouncement%5D-ONNX-working-groups-established) and help shape the future of ONNX.
-
-Check out our [contribution guide](https://github.com/onnx/onnx/blob/master/docs/CONTRIBUTING.md)
-and [call for contributions](https://github.com/onnx/onnx/issues/426) to get started.
-
-If you think some operator should be added to ONNX specification, please read
-[this document](docs/AddNewOp.md).
-
-# Discuss
-We encourage you to open [Issues](https://github.com/onnx/onnx/issues), or use Gitter for more real-time discussion:
-[![Join the chat at https://gitter.im/onnx/Lobby](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/onnx/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
-
-# Follow Us
-Stay up to date with the latest ONNX news. [[Facebook](https://www.facebook.com/onnxai/)] [[Twitter](https://twitter.com/onnxai)]
-
-
 
 
 
