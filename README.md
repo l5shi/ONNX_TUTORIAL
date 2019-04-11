@@ -1,5 +1,8 @@
-# ONNX_TUTORIAL
-This repository is used to build ONNX model from scratch.
+### This repository shows how to build ONNX model from scratch.
+
+#### 1. Node + Value
+#### 2. Connect to Make Graph
+#### 3. Make Final Model
 
 ![](./ONNX.png?raw=true ("RGB image")) 
 
