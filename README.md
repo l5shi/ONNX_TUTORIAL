@@ -1,2 +1,2 @@
-# generate_ONNX
-This repository is used to transfer network information into ONNX format.
+# ONNX_TUTORIAL
+This repository is used to build ONNX model from scratch.
