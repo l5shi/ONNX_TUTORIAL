@@ -1,10 +1,10 @@
-### This repository shows how to build ONNX model from scratch.
+![](./ONNX.png?raw=true ("RGB image")) 
+## This repository shows how to build ONNX model from scratch.
 
 #### 1. Node + Value
 #### 2. Connect to Make Graph
 #### 3. Make Final Model
 
-![](./ONNX.png?raw=true ("RGB image")) 
 
 
 # Installation
