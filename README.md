@@ -85,12 +85,3 @@ pytest
 ```
 
 to run tests.
-
-# Development
-
-Check out [contributor guide](https://github.com/onnx/onnx/blob/master/docs/CONTRIBUTING.md) for instructions.
-
-# License
-
-[MIT License](LICENSE)
-
